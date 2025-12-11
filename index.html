@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini C Compiler</title>
+    <style>
+        :root {
+            /* VS Code / GitHub Dark Theme */
+            --bg: #1e1e1e;
+            --text: #d4d4d4;
+            --border: #333333;
+            --surface: #252526;
+            --accent: #0e639c; /* VS Code Blue */
+            --ai-color: #c586c0; /* VS Code Purple */
+            --font: 'Segoe UI', system-ui, sans-serif;
+            --code-font: 'Consolas', 'Menlo', monospace;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 950px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HEADER */
+        .header {
+            padding: 10px 20px;
+            background: #333333;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #1e1e1e;
+        }
+        
+        .header h3 { 
+            margin: 0; 
+            font-size: 14px; 
+            color: #cccccc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: #444;
+            color: #aaa;
+            transition: 0.3s;
+        }
+        
+        .connected { 
+            background: #1e4e1e; 
+            color: #4ec9b0; /* VS Code Green */
+            border: 1px solid #2e7e2e;
+        }
+
+        /* EDITOR AREA */
+        textarea {
+            width: 100%;
+            height: 350px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: none;
+            padding: 20px;
+            font-family: var(--code-font);
+            font-size: 14px;
+            resize: vertical;
+            outline: none;
+            box-sizing: border-box;
+            line-height: 1.5;
+        }
+
+        /* CONTROLS */
+        .controls {
+            padding: 10px 20px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 6px 14px;
+            border-radius: 2px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: var(--font);
+            transition: 0.2s;
+        }
+        
+        .btn-run { background: #4ec9b0; color: #1e1e1e; font-weight: bold; }
+        .btn-run:hover { opacity: 0.9; }
+        
+        .btn-ai { background: #c586c0; color: #1e1e1e; font-weight: bold; }
+        .btn-ai:hover { opacity: 0.9; }
+
+        /* OUTPUT TERMINAL */
+        .terminal {
+            padding: 20px;
+            font-family: var(--code-font);
+            font-size: 13px;
+            background: #1e1e1e;
+            white-space: pre-wrap;
+            color: #cccccc;
+            min-height: 80px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .terminal-error { color: #f48771; }
+
+        /* AI SECTION */
+        #aiSection {
+            display: none;
+            padding: 20px;
+            background: #252526;
+        }
+        
+        .ai-header {
+            color: var(--ai-color);
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        /* Markdown Styles */
+        #aiResponse { font-size: 14px; line-height: 1.6; color: #d4d4d4; }
+        #aiResponse pre { 
+            background: #1e1e1e; 
+            padding: 15px; 
+            border-radius: 4px; 
+            border: 1px solid #444; 
+            overflow-x: auto; 
+        }
+        #aiResponse code { font-family: var(--code-font); color: #9cdcfe; }
+        #aiResponse strong { color: #ce9178; } /* Orange-ish for emphasis */
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h3>C Compiler <span class="status-badge" id="statusBadge">Connecting...</span></h3>
+            <span style="font-size: 11px; color: #666;">Powered by Firebase & Gemini 2.5</span>
+        </div>
+
+        <!-- Code Editor -->
+        <textarea id="sourceCode" spellcheck="false" placeholder="// Write C code here...">
+#include <stdio.h>
+
+int main() {
+    int numbers[3] = {1, 2, 3};
+    
+    // Intentional bug: Accessing index 10 (Out of bounds)
+    printf("Number: %d", numbers[10]); 
+    
+    return 0;
+}</textarea>
+
+        <!-- Buttons -->
+        <div class="controls">
+            <button class="btn-run" onclick="runCode()">▶ Run Code</button>
+            <button class="btn-ai" onclick="askFirebaseAI()">✨ Fix with AI</button>
+        </div>
+
+        <!-- Output -->
+        <div id="terminal" class="terminal">// Terminal ready.</div>
+
+        <!-- AI Output -->
+        <div id="aiSection">
+            <div class="ai-header">🧠 Gemini Analysis</div>
+            <div id="aiResponse"></div>
+        </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- FIREBASE INTEGRATION (STABLE V11) -->
+    <!-- ============================================== -->
+    <script type="module">
+        // 1. Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app-check.js";
+        import { getVertexAI, getGenerativeModel } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-vertexai.js";
+
+        // 2. YOUR CONFIGURATION
+        const firebaseConfig = {
+            apiKey: "AIzaSyAtdrEgMNqs8HHGelQtcjKa6UvpjrRRVV4",
+            authDomain: "gemini-compiler.firebaseapp.com",
+            projectId: "gemini-compiler",
+            storageBucket: "gemini-compiler.firebasestorage.app",
+            messagingSenderId: "931393651460",
+            appId: "1:931393651460:web:d48f4cff70ca45d8430651"
+        };
+
+        // 3. Initialize App
+        const app = initializeApp(firebaseConfig);
+
+        // 4. Initialize Security (App Check)
+        const RECAPTCHA_SITE_KEY = "6LcgRygsAAAAACOEbEJVfvisfZpl9jNQ3syRRNM_";
+        
+        try {
+            const appCheck = initializeAppCheck(app, {
+                provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY),
+                isTokenAutoRefreshEnabled: true
+            });
+            console.log("App Check Security: Active");
+        } catch (err) {
+            console.error("App Check Failed:", err);
+        }
+
+        // 5. Initialize AI Model (!!! THE FIX IS HERE !!!)
+        const vertexAI = getVertexAI(app);
+        // We now use the modern 'gemini-2.5-flash' model because 1.5 is retired.
+        const model = getGenerativeModel(vertexAI, { model: "gemini-2.5-flash" });
+
+        // Update Status Badge
+        const badge = document.getElementById('statusBadge');
+        if(badge) {
+            badge.innerText = "Connected";
+            badge.classList.add("connected");
+        }
+
+        // 6. Global AI Function
+        window.askFirebaseAI = async function() {
+            const code = document.getElementById('sourceCode').value;
+            const error = window.lastError || "No runtime error reported.";
+            const output = document.getElementById('terminal').innerText;
+            const aiDiv = document.getElementById('aiResponse');
+            const aiSection = document.getElementById('aiSection');
+            
+            aiSection.style.display = 'block';
+            aiDiv.innerHTML = "<span style='opacity:0.7'>Analyzing code logic...</span>";
+
+            const prompt = `
+                You are a helpful C Programming Tutor.
+                CODE:
+                ${code}
+                RUNTIME ERROR / OUTPUT:
+                ${error}
+                ${output}
+                1. Identify the bug clearly. 
+                2. Explain *why* it is happening.
+                3. Provide the corrected C code block.
+            `;
+
+            try {
+                const result = await model.generateContent(prompt);
+                const response = result.response;
+                const text = response.text();
+                
+                aiDiv.innerHTML = text
+                    .replace(/\n/g, "<br>")
+                    .replace(/```c/g, "<pre>") 
+                    .replace(/```/g, "</pre>")  
+                    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>"); 
+                    
+            } catch (e) {
+                console.error(e);
+                let msg = e.message;
+                if(msg.includes("403")) msg = "Security Check Failed. Ensure 'localhost' is in your Google Cloud reCAPTCHA Allowed Domains.";
+                aiDiv.innerHTML = `<span style="color:#f48771"><strong>AI Connection Error:</strong> ${msg}</span>`;
+            }
+        };
+    </script>
+
+    <!-- ============================================== -->
+    <!-- COMPILER LOGIC (Piston API) -->
+    <!-- ============================================== -->
+    <script>
+        window.lastError = "";
+        
+        async function runCode() {
+            const code = document.getElementById('sourceCode').value;
+            const term = document.getElementById('terminal');
+            
+            term.innerText = "Compiling and running...";
+            term.className = "terminal";
+            
+            try {
+                const res = await fetch("https://emkc.org/api/v2/piston/execute", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        language: "c",
+                        version: "10.2.0",
+                        files: [{ content: code }]
+                    })
+                });
+                const data = await res.json();
+                
+                if(data.run.stderr) {
+                    window.lastError = data.run.stderr;
+                    term.innerHTML = `<span class="terminal-error">❌ Error:\n${data.run.stderr}</span>`;
+                } else {
+                    window.lastError = "";
+                    term.innerText = data.run.stdout || "Program finished with no output.";
+                }
+            } catch(e) {
+                term.innerText = "Error connecting to Piston Compiler API.";
+            }
+        }
+
+        // Editor Helpers (Tab key support)
+        document.getElementById('sourceCode').addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+    </script>
+
+</body>
+</html>
